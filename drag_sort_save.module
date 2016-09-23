@@ -1,0 +1,748 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * This modules provides the dashboard functionality for the authenticated user
+ *
+ */
+global $user;
+
+/**
+ *  Implements hook_permission(). 
+ *  Defining permission to acess dashboard page 
+*/ 
+function drag_sort_save_permission() {
+  return array(
+    'Access dashboard rights' => array(
+      'title' => t('Access dashboard page'),
+      'description' => t('Allow access to dashboard page.'),
+    ),
+  );
+}
+
+/**
+ *  Implements hook_menu(). 
+ *  Register links to be used  
+*/ 
+function drag_sort_save_menu() {
+  $items = array();
+  $items['sav_dshbrd_ordr'] = array(
+    'type'             => MENU_CALLBACK,
+    'page callback'    => 'sav_dshbrd_ordr_func',
+    'access arguments' => array('Access dashboard rights'),
+  );
+  $items['dashboard'] = array(
+    'title'            => 'Dashboard',
+    'page callback'    => 'list_dashboard_items',
+    'access arguments' => array('Access dashboard rights'),
+  );
+  $items['rmv_dsbrd_item'] = array(
+    'type'             => MENU_CALLBACK,
+    'page callback'    => 'rmv_dsbrd_item_func',
+    'access arguments' => array('Access dashboard rights'),
+  );
+  $items['ur_srches_inact'] = array(
+    'type'             => MENU_CALLBACK,
+    'page callback'    => 'ur_srches_inact_func',
+    'access arguments' => array('Access dashboard rights'),
+  );
+  $items['stndrd_srches_inact'] = array(
+    'type'             => MENU_CALLBACK,
+    'page callback'    => 'stndrd_srches_inact_func',
+    'access arguments' => array('Access dashboard rights'),
+  );
+  $items['clr_dshbrd'] = array(
+    'type'             => MENU_CALLBACK,
+    'page callback'    => 'clr_dshbrd_func',
+    'access arguments' => array('Access dashboard rights'),
+  );
+  $items['updt_dshbrd'] = array(
+    'type'             => MENU_CALLBACK,
+    'page callback'    => 'updt_dshbrd_func',
+    'access arguments' => array('Access dashboard rights'),
+  );
+  $items['srt_dshbrd'] = array(
+    'type'             => MENU_CALLBACK,
+    'page callback'    => 'srt_dshbrd_func',
+    'access arguments' => array('Access dashboard rights'),
+  );
+  return $items;
+}
+
+/**
+ *  Implements hook_theme(). 
+ *  Registering theme functions required
+*/ 
+function drag_sort_save_theme() {
+  return array(
+    'dshbrd_lstng' => array(
+      'template'   => 'dshbrd_lstng',
+      'arguments'  => array('results' => NULL)
+	),
+  );
+} 
+
+/**
+ *  Performs update dashboard fucntionality i.e if a user changes his dashboard items e.g
+ *  add new items to the dashbaord from inactive items pool or re-adjust existing items on the dashboard.
+*/ 
+function updt_dshbrd_func() {
+  $edtr_id = get_editor_id();
+  //step1 disable self created nodes 
+  db_update('dashboard_listing')
+    ->fields(array('lstd' => 0))
+    ->condition('uid', $user->uid, '=')
+    ->condition('state', 1, '=')
+    ->execute();
+  //step2 remove edtr nodes 
+  db_delete('dashboard_listing')
+    ->condition('uid', $user->uid, '=')
+    ->condition('state', 0, '=')
+    ->execute();					
+  $qry_edtr_nds = db_select('dashboard_listing', 'dblstng');
+  $qry_edtr_nds->condition('dblstng.uid', $edtr_id, '=');
+  $qry_edtr_nds->fields('dblstng', array('nid', 'wght', 'lstd'));
+  $edtr_nds_fnd = $qry_edtr_nds->execute()->rowCount();
+  if ($edtr_nds_fnd > 0) {
+    $edtr_nds = $qry_edtr_nds->execute();
+    foreach ($edtr_nds as $edtr_nd): 
+      db_insert('dashboard_listing')
+        ->fields(array('uid', 'nid', 'wght', 'lstd', 'state'))
+        ->values(array(
+        'uid' => $user->uid,
+        'nid' => $edtr_nd->nid,
+        'wght' => $edtr_nd->wght,
+	    'lstd' => $edtr_nd->lstd,
+	    'state' => 0
+      ))
+      ->execute();
+    endforeach;
+  }
+}	
+
+/**
+ *  This method handles the functionality to clear an item from the dashboard. i.e if a user sele
+*/ 
+function clr_dshbrd_func() {
+  $update_wght_qry = db_update('dashboard_listing')
+                     ->fields(array(
+	                   'lstd' => 0,
+                     ))
+                    ->condition('uid', $user->uid, '=')
+                    ->execute();
+}
+
+/**
+ *  used to list dashboard items
+*/ 
+function list_dashboard_items() {
+  return theme('dshbrd_lstng'); 
+}
+
+/**
+ *  used to save dashboard current status of blocks
+ *   @param wghts  
+ *   holds wghts of the items 
+ *   @param d_nid
+ *   hold nid of the items 
+*/ 
+function sav_dshbrd_ordr_func($wghts = "", $d_nid = 0) {
+  //zero means its not a delettion operation
+  if ($d_nid == 0) {
+      //checking total currently on dashboard for current user
+      $rcvd_nid = $_REQUEST["rcvd_id"];
+      $qti_fnd = db_select('dashboard_listing', 'dblstng');
+      $qti_fnd->condition('dblstng.uid', $user->uid, '=');
+      $qti_fnd->condition('dblstng.lstd', 1, '=');
+      $qti_fnd->condition('dblstng.nid', $rcvd_nid, '<>');
+      $qti_fnd->fields('dblstng', array('nid'));
+      $ti_fnd = $qti_fnd->execute()->rowCount();
+      
+    if ($_REQUEST["dshbrd_drag"] == 1) {
+  	  $dshbrd_drag = $_REQUEST["dshbrd_drag"];
+  	}
+  	else {
+  	  $dshbrd_drag = 0;
+  	}
+  }
+  else {
+    $ti_fnd =0;	  
+  }
+  if ($ti_fnd >= 12) {
+    echo $ti_fnd;
+  }
+  else {
+    if ($wghts != "") {	
+      $_REQUEST["weights"] = $wghts;
+    }
+	else {
+      $_REQUEST["weights"] = $_REQUEST["weights"];
+    }
+    parse_str($_REQUEST["weights"], $weights);
+    foreach ($weights["srch"] as $wght => $nid) {
+	  //check if node exists
+      $qry_nd_chk = db_select('node', 'nod');
+      $qry_nd_chk->condition('nod.nid', $nid, '=');
+      $qry_nd_chk->fields('nod', array('nid'));
+  	  $qry_nd_chk->range(0, 1);
+      $nd_fnd_fnd = $qry_nd_chk->execute()->rowCount();
+	  
+    if ($nd_fnd_fnd >0) {
+        //check if this node is already in the dashboard_listing table for c_user
+	    $query = db_select('dashboard_listing', 'dblstng');
+	    $query->condition('dblstng.uid', $user->uid, '=');
+	    $query->condition('dblstng.nid', $nid, '=');
+	    $query->fields('dblstng', array('nid'));
+	    $query->range(0, 1);
+        $s_found = $query->execute()->rowCount();
+        //removing item
+		if ($d_nid == $nid) {
+		  $lstd = 0;
+		}
+		elseif ($rcvd_nid == $nid and $dshbrd_drag == 0) { //new item pushed from settings popup
+		  $lstd = 1;
+		}
+		elseif ($rcvd_nid == $nid and $dshbrd_drag == 1) { //new item dragged on on dashboard
+		  $lstd = node_dshbrd_status($nid); //existing items on dashboard
+		}
+		else {
+		  $lstd = node_dshbrd_status($nid);//existing items on dashboard
+		}
+		if ($s_found == 0) {
+          $lstd = 1;
+		  db_insert('dashboard_listing')
+          ->fields(array('uid', 'nid', 'wght', 'lstd', 'state'))
+          ->values(array(
+            'uid'   => $user->uid,
+            'nid'   => $nid,
+            'wght'  => $wght,
+	        'lstd'  => $lstd,
+	        'state' => 0
+          ))
+          ->execute();
+	    }
+		elseif ($s_found == 1) {
+          $update_wght_qry = db_update('dashboard_listing')
+          ->fields(array(
+            'wght' => $wght,
+	        'lstd' => $lstd,
+          ))
+          ->condition('uid', $user->uid, '=')
+          ->condition('nid', $nid, '=')
+          ->execute();
+	    }
+	  }
+    } 
+  }
+}
+
+/**
+ *  used to remove an item from dashboard
+*/ 
+function rmv_dsbrd_item_func() {
+  $nid = $_REQUEST["nid"];
+  $_REQUEST["weights"] .= "&srch[]=" . $nid;
+  sav_dshbrd_ordr_func($_REQUEST["weights"], $nid);
+  if (in_array('editor', $user->roles)) {
+    $update_wght_qry = db_update('dashboard_listing')
+      ->fields(array(
+        'lstd' => 0,
+      ))
+      ->condition('uid', $user->uid, '=')
+      ->condition('nid', $nid, '=')
+      ->execute();
+  }
+  else {
+    $update_wght_qry = db_update('dashboard_listing')
+      ->fields(array(
+        'lstd' => 0,
+      ))
+      ->condition('uid', $user->uid, '=')
+      ->condition('nid', $nid, '=')
+      ->execute();
+  }
+}
+
+/**
+ *  Generates a logged user inactive list items
+*/ 
+function ur_lsts_inact_func() {
+  $chk_qry = db_select('dashboard_listing', 'dblstng');
+  $chk_qry->join('node', 'nod', 'dblstng.nid = nod.nid');
+  $chk_qry->condition('nod.type','list', '=');
+  $chk_qry->condition('nod.status', 1, '=');
+  $chk_qry->condition('nod.uid', $user->uid, '=');
+  $chk_qry->condition('dblstng.uid', $user->uid, '=');
+  $chk_qry->condition('dblstng.lstd', 0, '=');
+  $chk_qry->fields('nod', array('nid'));
+  $chk_qry->orderBy('dblstng.wght', 'ASC');
+  $total_recs = $chk_qry->execute()->rowCount();
+  if ($total_recs > 0) {
+    $results = $chk_qry->execute();
+    echo'<ul class="menu"  id="ur_lsts_inact">';
+    foreach ($results as $result): 
+      $node = node_load($result->nid);
+	  //title link
+      $title_lnk = "list-detail/".$node->nid;
+      echo'
+	  <li id="srch_' . $node->nid . '" class="' . strtolower($node->type) . '"> 
+       <div id="sv_srch_wrpr">
+        <div class="mv_wrpr"><a class="move tt-x-cust"  id="move-' . $node->nid . '" tooltip="Move">Move</a></div>
+        <div class="rmv_wrpr"><a class="remove tt-x-cust" style="cursor:pointer; float:right;" id="' . $node->nid .'" tooltip="Remove">Remove</a></div>
+		<div id="title" class="tt-x-cust" tooltip="Drag & drop on dashboard"><h1><a>' . strtr($node->title, array("<"=>"&lt;", ">"=>"&gt;")) . '</a></h1> </div>
+		<div id="title" class="s-title" style="display:none;"><h1><a href="' . $title_lnk . '" target="_blank">'.strtr($node->title, array("<"=>"&lt;", ">"=>"&gt;")) . '</a></h1> </div>
+		' . list_view($node->nid) . '
+		</div> 
+      </li>';
+   endforeach;
+   echo'<div id="ur_lsts_inact_no_data" style="display:none;">No records found.</div></ul>'; 
+  }
+  else {
+    echo'<div id="ur_lsts_inact_no_data">No records found.</div>';
+  } 
+}
+
+/**
+ *  Generates a logged user inactive saved search items
+*/ 
+function ur_srches_inact_func() {
+  $chk_qry = db_select('dashboard_listing', 'dblstng');
+  $chk_qry->join('node', 'nod', 'dblstng.nid = nod.nid');
+  $chk_qry->condition('nod.type', 'save_search', '=');
+  $chk_qry->condition('nod.status', 1, '=');
+  $chk_qry->condition('nod.uid', $user->uid, '=');
+  $chk_qry->condition('dblstng.uid', $user->uid, '=');
+  $chk_qry->condition('dblstng.lstd', 0, '=');
+  $chk_qry->fields('nod', array('nid'));
+  $chk_qry->orderBy('dblstng.wght', 'ASC');
+  $total_recs = $chk_qry->execute()->rowCount();
+  //echo $total_recs;
+  if ($total_recs > 0) {
+    $results = $chk_qry->execute();
+    echo'<ul class="menu"  id="ur_srches_inact">';
+    foreach ($results as $result): 
+      $node = node_load($result->nid);
+      $title_lnk = $node->field_search_url["und"][0]["value"];  
+      echo'
+	  <li id="srch_' . $node->nid . '" class="' . strtolower($node->type) . ' col-md-3 col-sm-4 col-xs-12 m-t-0 p-0">
+       <div id="sv_srch_wrpr" class="p-10 m-r-5 m-b-10 m-l-5">
+       <div class="mv_wrpr"><a class="move tt-x-cust"  id="move-' . $node->nid . '"  tooltip="Move">Move</a></div>
+       <div class="rmv_wrpr"><a class="remove tt-x-cust" style="cursor:pointer; float:right;" id="' . $node->nid .'"  tooltip="Remove">Remove</a></div>
+       <div id="title" class="tt-x-cust" tooltip="Drag & drop on dashboard"><h1><a>' . strtr($node->title, array("<"=>"&lt;", ">"=>"&gt;")) . '</a></h1> </div>
+		<div id="title" class="s-title" style="display:none;"><h1><a href="' . $title_lnk . '&nid=' . $node->nid .'" target="_blank">' . strtr($node->title, array("<"=>"&lt;", ">"=>"&gt;")) . '</a></h1> </div>' . save_search_view($node->nid, 1) . '</div> 
+      </li>';
+    endforeach;
+    echo'<div id="ur_srches_inact_no_data" style="display:none;">No records found.</div></ul>'; 
+  }
+  else {
+    echo'<div id="ur_srches_inact_no_data">No records found.</div>';
+  } 
+}
+
+/**
+ *  Generates a logged user inactive saved search items
+*/ 
+function stndrd_lsts_inact_func() {
+  //fetching editor user id
+  $edit_usr_id = get_editor_id();
+  $chk_qry = db_select('dashboard_listing', 'dblstng');
+  $chk_qry->join('node', 'nod', 'dblstng.nid = nod.nid');
+  $chk_qry->condition('nod.type', 'list', '=');
+  $chk_qry->condition('nod.status', 1, '=');
+  $chk_qry->condition('nod.uid', $edit_usr_id, '=');
+  $chk_qry->condition('dblstng.uid', $user->uid, '=');
+  $chk_qry->condition('dblstng.lstd', 0, '=');
+  $chk_qry->fields('nod', array('nid'));
+  $chk_qry->orderBy('dblstng.wght', 'ASC');
+  $total_recs = $chk_qry->execute()->rowCount();
+  if ($total_recs>0) {
+    $results = $chk_qry->execute();
+    echo'<ul class="menu"  id="stndrd_lsts_inact">';
+    foreach ($results as $result): 
+      $node = node_load($result->nid);
+      $title_lnk = "list-detail/" . $node->nid;
+      echo'
+	  <li id="srch_' . $node->nid . '" class="' . strtolower($node->type) . '">
+       <div id="sv_srch_wrpr">
+        <div class="mv_wrpr"><a class="move tt-x-cust"  id="move-' . $node->nid . '" tooltip="Move">Move</a></div>
+        <div class="rmv_wrpr"><a class="remove tt-x-cust" style="cursor:pointer; float:right;" id="' . $node->nid.'"  tooltip="Remove">Remove</a></div>
+        <div id="title" class="tt-x-cust" tooltip="Drag & drop on dashboard"><h1><a>' . strtr($node->title, array("<"=>"&lt;", ">"=>"&gt;")) . '</a></h1> </div>
+		<div id="title" class="s-title" style="display:none;"><h1><a href="' . $title_lnk . '" target="_blank">'.strtr($node->title, array("<"=>"&lt;", ">"=>"&gt;")) . '</a></h1> </div>
+		' . list_view($node->nid) . '
+		</div></li>';
+    endforeach;
+    echo'<div id="stndrd_lsts_inact_no_data" style="display:none;">No records found.</div></ul>'; 
+  }
+  else {
+    echo'<div id="stndrd_lsts_inact_no_data">No records found.</div>';
+  } 
+}
+
+/**
+ *  generates incative standard searches(not save by logged user) list
+*/ 
+function stndrd_srches_inact_func() {
+  //fetching editor user id
+  $edit_usr_id = get_editor_id();
+  $chk_qry = db_select('dashboard_listing', 'dblstng');
+  $chk_qry->join('node','nod','dblstng.nid = nod.nid');
+  $chk_qry->condition('nod.type','save_search', '=');
+  $chk_qry->condition('nod.status',1, '=');
+  $chk_qry->condition('nod.uid',$edit_usr_id, '=');
+  $chk_qry->condition('dblstng.uid',$user->uid, '=');
+  $chk_qry->condition('dblstng.lstd',0, '=');
+  $chk_qry->fields('nod', array('nid'));
+  $chk_qry->orderBy('dblstng.wght', 'ASC');
+  $total_recs = $chk_qry->execute()->rowCount();
+  if ($total_recs>0) {
+    $results = $chk_qry->execute();
+    echo'<ul class="menu"  id="stndrd_srches_inact">';
+    foreach ($results as $result): 
+      $node = node_load($result->nid);
+      $title_lnk = $node->field_search_url["und"][0]["value"];  
+      echo'
+      	  <li id="srch_'.$node->nid.'" class="' . strtolower($node->type).' col-md-3 col-sm-4 col-xs-12 m-t-0 p-0">
+             <div id="sv_srch_wrpr" class="p-10 m-r-5 m-b-10 m-l-5">
+             <div class="mv_wrpr"><a class="move tt-x-cust"  id="move-' . $node->nid.'" tooltip="Move">Move</a></div>
+             <div class="rmv_wrpr"><a class="remove tt-x-cust" style="cursor:pointer; float:right;" id="' . $node->nid .'"  tooltip="Remove">Remove</a></div>
+             <div id="title" class="tt-x-cust" tooltip="Drag & drop on dashboard"><h1><a>'.strtr($node->title,array("<"=>"&lt;",">"=>"&gt;")).'</a></h1> </div>
+      		<div id="title" class="s-title" style="display:none;"><h1><a href="' . $title_lnk . '&nid=' . $node->nid .'" target="_blank">' . strtr($node->title, array("<"=>"&lt;", ">"=>"&gt;")).'</a></h1> </div>
+            '. save_search_view($node->nid, 1) . '	  
+             </div> 
+            </li>';
+    endforeach;
+    echo'<div id="stndrd_srches_inact_no_data" style="display:none;">No records found.</div></ul>'; 
+  }
+  else {
+    echo'<div id="stndrd_srches_inact_no_data">No records found.</div>';
+  } 
+}
+
+/**
+ *  Returns the list status whether its shared/private
+ *  @param $list_id
+ *    holds list id
+ *  @return $output
+ *    render HTML
+*/ 
+function chk_lst_shrd($list_id) {
+  $nod = node_load($list_id);
+  $shared = $nod->field_sharing_users['und'][0]['uid'];
+  //get editor id
+  $edtr_id = get_editor_id();
+  if ($edtr_id != $nod->uid) {
+    if ($shared != '') {
+      $output = '<span class="shared">Shared</span>';
+    }
+	else {
+      $output = '<span class="prvt">Private</span>';
+    }
+  }
+  else {
+    $output = '<span class="public">Public</span>';
+  }
+  return $output;
+}
+
+/**
+ *  counts profiles
+ *   @param $list_id  
+ *    holds list id  
+ *   @return
+ *    profile count 
+*/ 
+function total_profiles_per_list($list_id) {
+  $sql = "select pid from xl_grouping where nid=" . $list_id;
+  $count_profiles = db_query($sql)->rowCount();
+  if ($count_profiles > 0) {
+    $output = $count_profiles." Profiles";
+  }
+  else {
+    $output = "0 Profile";
+  }
+  return $output;
+}
+
+/**
+ *   generates tag list associated
+ *
+ *   @param $term_ids_arrays  
+ *      holds term ids array  
+ *   @param $srch_tags
+ *      profile count 
+ *   @return
+ *      tags list 
+*/ 
+function get_tags($term_ids_arrays, $srch_tags = 0) {
+  $terms = "";
+  $count = 1;
+  $total = count($term_ids_arrays);
+  foreach ($term_ids_arrays as $term_ids_array) {
+    $tid = $term_ids_array["tid"];
+    $term = taxonomy_term_load($tid);
+    if ($count != $total) {
+	  $terms .= urldecode($term->name).", ";
+    }
+	else {
+	  $terms .= urldecode($term->name);
+	}
+	++$count;
+  }
+  if ($srch_tags == 1) {
+    $lmt = 70;
+  }
+  else {
+    $lmt = 74;
+  }
+  $terms = htmlspecialchars(drupal_substr(strip_tags($terms), 0, $lmt));
+  return $terms;
+}
+
+/**
+ *   generates collaborators list
+ *   @param $nid  
+ *    holds nid  
+ *   @return
+ *    returns collaborators 
+*/
+function get_list_colbrtrs($nid) {
+  $nod = node_load($nid); 
+  $owner = user_load($nod->uid);
+  $owner_picture = $owner->picture->filename;
+  $ownername = $owner->name;
+  $ownername = drupal_substr(strip_tags($ownername), 0, 5);
+  if($owner_picture) {
+    $opic = "/sites/default/files/pictures/".$owner_picture;	
+  }
+  else {
+    $opic = "/sites/default/files/pictures/user-default.png";
+  }         
+  $output = '
+  <div class="col-sm-12 p-0">
+    <div class="img_frmt"><span class="helper"></span><img src="' . $opic . '" alt="" /></div>
+    <div class="list-collab-name pull-left"><span id="owner-name">' . $ownername . ' </span></div>
+  </div>';
+ 
+  $nod = node_load($nid);
+  $count = 1;
+  foreach ($nod->field_sharing_users['und'] as $uidarr) {
+    $uid = $uidarr['uid'];
+	$usr = user_load($uid);
+	if ($usr) {
+	  $picture = $usr->picture->filename;
+	  $name = $usr->name;
+	  if ($picture) {
+        $pic = "/sites/default/files/pictures/".$picture;	
+	  }
+	  else {
+	    $pic = "/sites/default/files/pictures/user-default.png";
+   	  }
+	  $output.='
+	<div class="col-sm-12 p-0">
+     <div class="list-collab-image pull-left"><img height:"30px" width="30px" src="' . $pic . '" alt="" /></div>
+     <div class="list-collab-name pull-left">' . drupal_substr(strip_tags($name), 0, 5) . '</div>
+    </div>';
+	}
+	if ($count == 3) {
+	  break;
+	}
+	++$count;
+  }
+  return $output;
+}
+
+/**
+ *  provides lastes comments list for a node
+ *  @param $nid
+ *  holds node id.
+*/
+function get_latest_comments($nid) {
+  $chk_qry = db_select('comment', 'cmnts');
+  $chk_qry->join('field_data_comment_body', 'cmnts_bdy', 'cmnts.cid = cmnts_bdy.entity_id');
+  $chk_qry->condition('cmnts.nid',$nid, '=');
+  $chk_qry->fields('cmnts', array('uid','created'));
+  $chk_qry->fields('cmnts_bdy', array('comment_body_value'));
+  $chk_qry->orderBy('cmnts.created', 'DESC');
+  $chk_qry->range(0, 2);
+  $total_recs = $chk_qry->execute()->rowCount();
+  $output = "";
+  if ($total_recs>0) {
+    $comments = $chk_qry->execute();
+    foreach ($comments as $comment) {
+      //comment body
+      $c_body = $comment->comment_body_value;
+     //comment author 
+     $c_authr_uid = $comment->uid;
+     $c_authr_info = user_load($c_authr_uid);
+     //create date 
+     $c_crtd = $comment->created;
+     $output .= '<div class="comment_bdy">'. drupal_substr(strip_tags($c_body), 0, 45).'</div>
+     <div class="c_author">' . $c_authr_info->name . '</div>
+     <div class="c_date">on ' . format_date($c_crtd, 'custom', 'm/d/Y - H:i') . '</div>';
+    }	 
+  }
+  else {
+    $output.='No comments found.';
+  }
+  return $output;
+}
+
+/**
+ *   generates list view 
+ *   @param $nid  
+ *    holds nid  
+ *   @return $output
+ *   list view 
+*/
+function list_view($nid){
+  $node = node_load($nid);	
+  $output = '<div class="update"><strong>Update date:</strong>' . date ("d/m/Y", $node->changed) . '</div>
+            <div class="prvcy"><strong>Privacy:</strong> ' . chk_lst_shrd($node->nid) . '</div>
+            <div class="count"><strong>Count:</strong> ' . total_profiles_per_list($node->nid) . '</div>
+            <div class="owner"><strong>Owner:</strong> ' . $node->name . '</div>
+            <div class="body">';
+  if ($node->body["und"][0]["value"]!="") {
+    $output .= htmlspecialchars(drupal_substr(strip_tags($node->body["und"][0]["value"]), 0, 82));
+  }
+  $output .= '</div><div class="tags"><strong>Tags:</strong>';
+  $tags = array_filter($node->field_lists_tags["und"]);
+  
+  if (!empty($tags)) {
+	$tags = get_tags($node->field_lists_tags["und"]);
+      if ($tags != "") {
+  	  $output .= $tags;
+  	}
+  	else {
+  	  $output .= "No tags found.";
+  	}
+  }
+  else {
+    $output .= "No tags found.";
+  }
+  $output .= '</div>
+  <div id="colbrtrs"><strong>List Collaborators</strong><div id="c_list">' . get_list_colbrtrs($node->nid) . '</div></div>
+  <div id="comments"><strong>Latest Comments:</strong><div id="com_list">' . get_latest_comments($node->nid) . '</div></div>';
+  return $output;
+}
+
+/**
+ *   generates search view 
+ *   @param $nid  
+ *    holds nid  
+ *   @param $dialog  
+ *    a flag to check whether it is a dialog or not 
+ *   @return $output
+ *    save search view
+*/
+function save_search_view($nid, $dialog = 0) {
+  $node = node_load($nid);
+  $output = '<div class="body">';
+  if($node->body["und"][0]["value"]!="") {
+    $output .= htmlspecialchars(drupal_substr(strip_tags($node->body["und"][0]["value"]),0,96)); 
+  }
+  $output .= '</div>
+  <div id="line_abv"></div>';
+  $output .= '<div class="other-tags"><strong>Tags:</strong>';
+  $tags = array_filter($node->field_search_tags["und"]);
+  if (!empty($tags)) {
+	
+    $tags = get_tags($node->field_search_tags["und"],1);
+    
+    if($tags != "") {
+  	  $output .= $tags;
+  	}
+  	else {
+  	  $output .= "No tags found.";
+  	}
+  }
+  else {
+    $output.="No tags found.";
+  }
+  $output .= '</div>';
+  return $output;
+}
+  
+/**
+ *   generates editor id 
+ *   @return $edit_usr_id 
+ *    editor id
+*/  
+function get_editor_id(){
+  //fetching editor user id
+  $roles = array('editor');
+  $qry_edt = db_select('users_roles', 'ur');
+  $qry_edt->join('users', 'u', 'u.uid = ur.uid');
+  $qry_edt->join('role', 'r', 'r.rid = ur.rid');
+  $qry_edt->fields('u',array('uid'));
+  $qry_edt->condition('r.name', $roles, 'IN');
+  $qry_edt->range(0, 1);
+  $edt_info = $qry_edt->execute();
+  foreach ($edt_info as $edt_inf ) {
+    $edit_usr_id=$edt_inf->uid;
+  }
+  return $edit_usr_id;
+}
+
+/**
+ *   first time login user dashboard creation
+ *  @param $edit
+ *    reference 
+ *   @param $account
+ *    an object holding user info
+*/  
+function drag_sort_save_user_insert(&$edit, $account) {
+  $edtr_id = get_editor_id();
+  $qry_edtr_nds = db_select('dashboard_listing', 'dblstng');
+  $qry_edtr_nds->condition('dblstng.uid', $edtr_id, '=');
+  $qry_edtr_nds->fields('dblstng', array('nid','wght','lstd'));
+  $edtr_nds_fnd = $qry_edtr_nds->execute()->rowCount();
+  if($edtr_nds_fnd>0) {
+    $edtr_nds = $qry_edtr_nds->execute();
+    foreach ($edtr_nds as $edtr_nd): 
+      db_insert('dashboard_listing')
+        ->fields(array('uid', 'nid', 'wght', 'lstd', 'state'))
+        ->values(array(
+          'uid'   => $account->uid,
+          'nid'   => $edtr_nd->nid,
+          'wght'  => $edtr_nd->wght,
+	      'lstd'  => $edtr_nd->lstd,
+	      'state' => 0
+         ))
+        ->execute();
+    endforeach;
+  }
+}  
+
+/**
+ *   to clear a user dashboard 
+ *   @param $account
+ *    an object holding user info
+*/ 
+function drag_sort_save_user_delete($account) {
+  $uid = $account->uid;
+  db_delete('dashboard_listing')
+    ->condition('uid', $uid, '=')
+    ->execute();					
+}
+
+/**
+ *   to check whether a item is listed or node on the dashboard 
+ *   @param nid
+ *    holds node id
+ *   @return
+ *    status 
+*/ 
+function node_dshbrd_status($nid){
+  $qnd_sts = db_select('dashboard_listing', 'dblstng');
+  $qnd_sts->condition('dblstng.uid', $user->uid, '=');
+  $qnd_sts->condition('dblstng.nid', $nid, '=');
+  $qnd_sts->fields('dblstng', array('lstd'));
+  $qnd_sts->range(0, 1);
+  $results = $qnd_sts->execute();
+  foreach ($results as $result): 
+    $lstd = $result->lstd;
+  endforeach;
+  return $lstd;
+}
+

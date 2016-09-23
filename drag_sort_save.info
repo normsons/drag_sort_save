@@ -1,0 +1,6 @@
+name = Drag, Drop, Save
+description = Custom Module for drag, drop, save views items
+package = Custom modules
+core = 7.x
+stylesheets[all][] = css/drag_sort_save.css
+scripts[] = 'js/save_sort.js'

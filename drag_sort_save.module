@@ -422,9 +422,9 @@ function stndrd_srches_inact_func() {
 /**
  *  Returns the list status whether its shared/private
  *  @param $list_id
- *    holds list id
+ *  holds list id
  *  @return $output
- *    render HTML
+ *  render HTML
 */ 
 function chk_lst_shrd($list_id) {
   $nod = node_load($list_id);
@@ -448,9 +448,9 @@ function chk_lst_shrd($list_id) {
 /**
  *  counts profiles
  *   @param $list_id  
- *    holds list id  
- *   @return
- *    profile count 
+ *   holds list id  
+ *   @return $output
+ *   profile count 
 */ 
 function total_profiles_per_list($list_id) {
   $sql = "select pid from xl_grouping where nid=" . $list_id;
@@ -468,11 +468,11 @@ function total_profiles_per_list($list_id) {
  *   generates tag list associated
  *
  *   @param $term_ids_arrays  
- *      holds term ids array  
+ *   holds term ids array  
  *   @param $srch_tags
- *      profile count 
- *   @return
- *      tags list 
+ *   profile count 
+ *   @return $terms
+ *   tags list 
 */ 
 function get_tags($term_ids_arrays, $srch_tags = 0) {
   $terms = "";
@@ -502,9 +502,9 @@ function get_tags($term_ids_arrays, $srch_tags = 0) {
 /**
  *   generates collaborators list
  *   @param $nid  
- *    holds nid  
- *   @return
- *    returns collaborators 
+ *   holds nid  
+ *   @return $output
+ *   returns collaborators 
 */
 function get_list_colbrtrs($nid) {
   $nod = node_load($nid); 
@@ -666,7 +666,7 @@ function save_search_view($nid, $dialog = 0) {
 /**
  *   generates editor id 
  *   @return $edit_usr_id 
- *    editor id
+ *   editor id
 */  
 function get_editor_id(){
   //fetching editor user id
@@ -729,9 +729,9 @@ function drag_sort_save_user_delete($account) {
 /**
  *   to check whether a item is listed or node on the dashboard 
  *   @param nid
- *    holds node id
- *   @return
- *    status 
+ *   holds node id
+ *   @return $lstd
+ *   status 
 */ 
 function node_dshbrd_status($nid){
   $qnd_sts = db_select('dashboard_listing', 'dblstng');

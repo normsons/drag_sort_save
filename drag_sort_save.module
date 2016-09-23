@@ -3,7 +3,7 @@
 
 /**
  * @file
- * This modules provides the dashboard functionality for the authenticated user
+ * This module provides the dashboard functionality for the authenticated user
  *
  */
 global $user;
